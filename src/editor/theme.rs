@@ -1,18 +1,27 @@
 use super::color::Color;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Theme {
     pub name: String,
     pub style: Style,
-    pub gutter_style: Style,
-    pub statusline_style: StatuslineStyle,
+    pub gutter: Style,
+    pub statusline: Style,
+    pub command_prompt: Style,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Style {
+    pub text_color: Option<Color>,
+    pub background_color: Option<Color>,
+    pub bold: bool,
+    pub italic: bool,
 }
 
 impl Theme {
     pub fn get_style(&self, scope: &str) -> Option<Style> {
         match scope {
             "function" => Some(Style {
-                fg: Some(Color::Rgb {
+                text_color: Some(Color::Rgb {
                     r: 66,
                     g: 135,
                     b: 245,
@@ -21,7 +30,7 @@ impl Theme {
                 ..Style::default()
             }),
             "keyword" => Some(Style {
-                fg: Some(Color::Rgb {
+                text_color: Some(Color::Rgb {
                     r: 204,
                     g: 120,
                     b: 50,
@@ -30,7 +39,7 @@ impl Theme {
                 ..Style::default()
             }),
             "string" => Some(Style {
-                fg: Some(Color::Rgb {
+                text_color: Some(Color::Rgb {
                     r: 152,
                     g: 195,
                     b: 121,
@@ -38,7 +47,7 @@ impl Theme {
                 ..Style::default()
             }),
             "comment" => Some(Style {
-                fg: Some(Color::Rgb {
+                text_color: Some(Color::Rgb {
                     r: 92,
                     g: 99,
                     b: 112,
@@ -50,7 +59,7 @@ impl Theme {
         }
     }
 
-    pub fn get_selection_bg(&self) -> Color {
+    pub fn get_selection_background_color(&self) -> Color {
         todo!()
     }
 }
@@ -60,69 +69,84 @@ impl Default for Theme {
         Theme {
             name: "default".to_string(),
             style: Style {
-                fg: Some(Color::Rgb {
-                    r: 220,
-                    g: 220,
-                    b: 220,
-                }), // Light gray
-                bg: Some(Color::Rgb {
-                    r: 40,
-                    g: 42,
-                    b: 54,
-                }), // Dark background
+                text_color: Some(Color::Rgb {
+                    r: 207,
+                    g: 159,
+                    b: 255,
+                }), // Lightviolet
+                background_color: Some(Color::Rgb {
+                    r: 52,
+                    g: 21,
+                    b: 57,
+                }), // Dark violet
                 bold: false,
                 italic: false,
             },
-            gutter_style: Style {
-                fg: Some(Color::Rgb {
+            gutter: Style {
+                text_color: Some(Color::Rgb {
                     r: 150,
                     g: 150,
                     b: 150,
                 }),
-                bg: Some(Color::Rgb {
+                background_color: Some(Color::Rgb {
                     r: 30,
                     g: 32,
                     b: 44,
                 }),
                 ..Style::default()
             },
-            statusline_style: StatuslineStyle::default(),
+            statusline: Style {
+                text_color: Some(Color::Rgb {
+                    r: 207,
+                    g: 159,
+                    b: 255,
+                }),
+                background_color: Some(Color::Rgb {
+                    r: 52,
+                    g: 21,
+                    b: 57,
+                }),
+                bold: false,
+                italic: false,
+                ..Default::default()
+            },
+            command_prompt: Style {
+                text_color: Some(Color::Rgb {
+                    r: 207,
+                    g: 159,
+                    b: 255,
+                }),
+                background_color: Some(Color::Rgb {
+                    r: 52,
+                    g: 21,
+                    b: 57,
+                }),
+                ..Default::default()
+            },
         }
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct StatuslineStyle {
-    pub outer_style: Style,
-    pub outer_chars: [char; 4],
-    pub inner_style: Style,
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Style {
-    pub fg: Option<Color>,
-    pub bg: Option<Color>,
-    pub bold: bool,
-    pub italic: bool,
-}
-
 impl Style {
-    pub fn fallback_bg(&self, fallback_bg: &Style) -> Style {
-        let bg = self
-            .bg
-            .or(fallback_bg.bg)
+    pub fn fallback_background_color(&self, fallback_bg: &Style) -> Style {
+        let background_color = self
+            .background_color
+            .or(fallback_bg.background_color)
             .or(Some(Color::Rgb { r: 0, g: 0, b: 0 }));
-        self.with_bg(bg)
+        self.with_background_color(background_color)
     }
 
-    pub fn with_bg(&self, bg: Option<Color>) -> Style {
-        Style { bg, ..self.clone() }
+    pub fn with_background_color(&self, bg: Option<Color>) -> Style {
+        Style {
+            background_color: bg,
+            ..self.clone()
+        }
     }
 
     pub fn inverted(&self) -> Style {
         Style {
-            fg: self.bg,
-            bg: self.fg,
+            text_color: self.background_color,
+            background_color: self.text_color,
             bold: self.bold,
             italic: self.italic,
         }

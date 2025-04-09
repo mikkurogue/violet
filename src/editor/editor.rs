@@ -2,7 +2,7 @@ use crossterm::{
     cursor::{self, MoveTo},
     event::KeyCode,
     queue,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    style::{Color as CrosstermColor, Print, SetBackgroundColor, SetForegroundColor},
     terminal,
 };
 use std::path::Path;
@@ -18,7 +18,7 @@ use crate::{
     highlighter::Highlighter,
 };
 
-use super::{mode::Mode, theme::Theme};
+use super::{color::Color, mode::Mode, theme::Theme};
 
 pub struct Editor {
     buffer: Buffer,
@@ -32,6 +32,7 @@ pub struct Editor {
     last_key: Option<KeyCode>,
     motion_count: Option<usize>,
     highlighter: Highlighter,
+    theme: Theme,
 }
 
 impl Editor {
@@ -49,7 +50,7 @@ impl Editor {
         };
 
         let def_theme = Theme::default();
-        let h = Highlighter::new(def_theme).unwrap();
+        let h = Highlighter::new(def_theme.clone()).unwrap();
 
         Self {
             buffer,
@@ -63,6 +64,7 @@ impl Editor {
             last_key: None,
             motion_count: None,
             highlighter: h,
+            theme: def_theme,
         }
     }
 
@@ -596,16 +598,28 @@ impl Editor {
                 }
 
                 cell.fg = if is_active {
-                    Color::Yellow
+                    Color::Rgb {
+                        r: 207,
+                        g: 159,
+                        b: 255,
+                    }
+                    .into()
                 } else {
-                    Color::DarkGrey
+                    //dark violet
+                    Color::Rgb { r: 73, g: 6, b: 72 }.into()
                 };
                 self.render_buffer.set_cell(x, render_y, cell);
             }
 
             let mut separator_cell = RenderCell::default();
             separator_cell.ch = '│';
-            separator_cell.fg = Color::DarkGrey;
+            separator_cell.fg = Color::Rgb {
+                // dark yellow for now
+                r: 255,
+                b: 0,
+                g: 255,
+            }
+            .into();
             self.render_buffer
                 .set_cell(line_number_width, render_y, separator_cell);
 
@@ -626,23 +640,6 @@ impl Editor {
                 let mut cell = RenderCell::default();
                 cell.ch = ch;
 
-                if is_active && (self.viewport_x + buffer_x) == self.cursor.x {
-                    match self.mode {
-                        Mode::Normal => {
-                            cell.bg = Color::White;
-                            cell.fg = Color::Black;
-                        }
-                        Mode::Insert => {
-                            cell.bg = Color::Red;
-                            cell.fg = Color::Black;
-                        }
-                        Mode::Command => {
-                            cell.bg = Color::Yellow;
-                            cell.fg = Color::Black;
-                        }
-                    }
-                }
-
                 self.render_buffer.set_cell(render_x, render_y, cell);
             }
 
@@ -655,16 +652,13 @@ impl Editor {
                     cell.ch = ' ';
                     match self.mode {
                         Mode::Normal => {
-                            cell.bg = Color::White;
-                            cell.fg = Color::Black;
+                            cell.fg = Color::Rgb { r: 0, b: 0, g: 0 }.into();
                         }
                         Mode::Insert => {
-                            cell.bg = Color::Green;
-                            cell.fg = Color::Black;
+                            cell.fg = Color::Rgb { r: 0, b: 0, g: 0 }.into();
                         }
                         Mode::Command => {
-                            cell.bg = Color::White;
-                            cell.fg = Color::Black;
+                            cell.fg = Color::Rgb { r: 0, b: 0, g: 0 }.into();
                         }
                     }
                     self.render_buffer.set_cell(render_x, render_y, cell);
@@ -698,17 +692,18 @@ impl Editor {
                 break;
             }
 
+            // STATUS LINE CELL
             let mut cell = RenderCell::default();
             cell.ch = ch;
 
             let cell_color = match self.mode {
-                Mode::Normal => Color::Green,
-                Mode::Command => Color::Yellow,
-                Mode::Insert => Color::Red,
+                Mode::Normal => self.theme.statusline.background_color,
+                Mode::Command => self.theme.statusline.background_color,
+                Mode::Insert => self.theme.statusline.background_color,
             };
 
-            cell.bg = cell_color;
-            cell.fg = Color::White;
+            cell.bg = cell_color.unwrap_or_default().into();
+            cell.fg = self.theme.statusline.text_color.unwrap_or_default().into();
 
             self.render_buffer.set_cell(x, status_y, cell);
         }
@@ -724,7 +719,11 @@ impl Editor {
             for x in 0..self.render_buffer.width {
                 let mut cell = RenderCell::default();
                 cell.ch = ' ';
-                cell.bg = Color::DarkBlue;
+                // cell.bg = self
+                //     .theme
+                //     .command_prompt
+                //     .background_color
+                //     .unwrap_or_default();
                 self.render_buffer.set_cell(x, prompt_y, cell);
             }
 
@@ -734,8 +733,13 @@ impl Editor {
                 if x < self.render_buffer.width {
                     let mut cell = RenderCell::default();
                     cell.ch = ch;
-                    cell.fg = Color::Black;
-                    cell.bg = Color::DarkBlue;
+                    cell.fg = self
+                        .theme
+                        .command_prompt
+                        .text_color
+                        .unwrap_or_default()
+                        .into();
+
                     self.render_buffer.set_cell(x, prompt_y, cell);
                 }
             }
@@ -745,8 +749,7 @@ impl Editor {
             if cursor_x < self.render_buffer.width {
                 let mut cell = RenderCell::default();
                 cell.ch = ' ';
-                cell.bg = Color::White;
-                cell.fg = Color::Black;
+                cell.fg = Color::Rgb { r: 0, g: 0, b: 0 }.into();
                 self.render_buffer.set_cell(cursor_x, prompt_y, cell);
             }
         }
@@ -768,8 +771,18 @@ impl Editor {
                         queue!(
                             out,
                             MoveTo(x as u16, y as u16),
-                            SetForegroundColor(cell.fg),
-                            SetBackgroundColor(cell.bg),
+                            SetForegroundColor(
+                                self.theme
+                                    .style
+                                    .text_color
+                                    .unwrap_or(Color::Rgb {
+                                        r: 255,
+                                        g: 255,
+                                        b: 255
+                                    })
+                                    .into()
+                            ),
+                            SetBackgroundColor(cell.bg.into()),
                             Print(cell.ch)
                         )?;
                     }
